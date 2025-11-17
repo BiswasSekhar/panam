@@ -1,0 +1,24 @@
+# Backend
+Backend/*.db
+Backend/*.exe
+Backend/*.test
+Backend/*.out
+Backend/vendor/
+
+# Frontend
+Frontend/node_modules/
+Frontend/.expo/
+Frontend/dist/
+Frontend/npm-debug.*
+Frontend/*.jks
+Frontend/*.p8
+Frontend/*.p12
+Frontend/*.key
+Frontend/*.mobileprovision
+Frontend/*.orig.*
+Frontend/web-build/
+
+# General
+.DS_Store
+.env
+*.log
