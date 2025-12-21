@@ -29,6 +29,11 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
   late String _selectedAccountId;
   bool _saving = false;
 
+  // Optional marking for actual income/expense/loan
+  bool? _isActualIncome;
+  bool? _isActualExpense;
+  bool? _isLoan;
+
   @override
   void initState() {
     super.initState();
@@ -38,6 +43,11 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
     _isIncome = widget.transaction.type == TransactionType.income;
     _dateTime = widget.transaction.date;
     _selectedAccountId = widget.transaction.accountId;
+    
+    // Load existing marking flags
+    _isActualIncome = widget.transaction.isActualIncome;
+    _isActualExpense = widget.transaction.isActualExpense;
+    _isLoan = widget.transaction.isLoan;
   }
 
   @override
@@ -103,6 +113,9 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
         isIncome: _isIncome,
         accountId: _selectedAccountId,
         note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
+        isActualIncome: _isActualIncome,
+        isActualExpense: _isActualExpense,
+        isLoan: _isLoan,
       );
 
       if (mounted) Navigator.of(context).pop();
@@ -161,7 +174,7 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
-                            'Income',
+                            'Credit',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontWeight: _isIncome ? FontWeight.bold : FontWeight.normal,
@@ -241,6 +254,39 @@ class _EditTransactionDialogState extends State<EditTransactionDialog> {
                     ),
                   ],
                 ),
+              ),
+              const SizedBox(height: 16),
+              // Optional classification
+              Text(
+                'Optional Classification',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Mark as Actual Income'),
+                subtitle: const Text('This is real income (salary, etc)'),
+                value: _isActualIncome ?? false,
+                tristate: true,
+                onChanged: (v) => setState(() => _isActualIncome = v),
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Mark as Actual Expense'),
+                subtitle: const Text('This is a real expense'),
+                value: _isActualExpense ?? false,
+                tristate: true,
+                onChanged: (v) => setState(() => _isActualExpense = v),
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Mark as Loan'),
+                subtitle: const Text('Money lent to be returned later'),
+                value: _isLoan ?? false,
+                tristate: true,
+                onChanged: (v) => setState(() => _isLoan = v),
               ),
             ],
           ),

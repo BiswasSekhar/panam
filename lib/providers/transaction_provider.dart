@@ -420,6 +420,9 @@ class TransactionProvider extends ChangeNotifier {
     required String accountId,
     String? note,
     String? categoryId,
+    bool? isActualIncome,
+    bool? isActualExpense,
+    bool? isLoan,
   }) async {
     final existing = _hive.transactionsBox.get(id);
     if (existing == null) return;
@@ -448,6 +451,9 @@ class TransactionProvider extends ChangeNotifier {
       source: existing.source,
       isSelfTransfer: existing.isSelfTransfer,
       importSequence: existing.importSequence,
+      isActualIncome: isActualIncome,
+      isActualExpense: isActualExpense,
+      isLoan: isLoan,
     );
 
     await _hive.transactionsBox.put(id, updated);

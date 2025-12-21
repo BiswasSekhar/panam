@@ -66,6 +66,16 @@ class Transaction extends HiveObject {
   @HiveField(13)
   final int? importSequence; // Preserves PDF table row order for same-date transactions
 
+  // Optional marking for actual income/expense vs just credit/debit
+  @HiveField(14)
+  final bool? isActualIncome; // User confirmed this credit is actual income (salary, etc)
+
+  @HiveField(15)
+  final bool? isActualExpense; // User confirmed this debit is actual expense
+
+  @HiveField(16)
+  final bool? isLoan; // Money lent to someone (to be returned later)
+
   Transaction({
     required this.id,
     required this.amount,
@@ -81,5 +91,8 @@ class Transaction extends HiveObject {
     this.source = TransactionSource.manual,
     this.isSelfTransfer,
     this.importSequence,
+    this.isActualIncome,
+    this.isActualExpense,
+    this.isLoan,
   });
 }

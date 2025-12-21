@@ -30,13 +30,17 @@ class TransactionAdapter extends TypeAdapter<Transaction> {
       dedupKey: fields[10] as String?,
       source: fields[11] as TransactionSource,
       isSelfTransfer: fields[12] as bool?,
+      importSequence: fields[13] as int?,
+      isActualIncome: fields[14] as bool?,
+      isActualExpense: fields[15] as bool?,
+      isLoan: fields[16] as bool?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Transaction obj) {
     writer
-      ..writeByte(13)
+      ..writeByte(17)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -62,7 +66,15 @@ class TransactionAdapter extends TypeAdapter<Transaction> {
       ..writeByte(11)
       ..write(obj.source)
       ..writeByte(12)
-      ..write(obj.isSelfTransfer);
+      ..write(obj.isSelfTransfer)
+      ..writeByte(13)
+      ..write(obj.importSequence)
+      ..writeByte(14)
+      ..write(obj.isActualIncome)
+      ..writeByte(15)
+      ..write(obj.isActualExpense)
+      ..writeByte(16)
+      ..write(obj.isLoan);
   }
 
   @override

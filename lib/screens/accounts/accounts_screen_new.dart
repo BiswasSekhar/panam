@@ -8,6 +8,7 @@ import '../../data/models/account.dart';
 import '../../widgets/common/glassmorphic_card.dart';
 import 'widgets/add_account_dialog.dart';
 import 'widgets/transaction_list_item.dart';
+import 'widgets/bulk_edit_dialog.dart';
 
 class AccountsScreen extends StatefulWidget {
   const AccountsScreen({super.key});
@@ -19,6 +20,14 @@ class AccountsScreen extends StatefulWidget {
 class _AccountsScreenState extends State<AccountsScreen> {
   late PageController _pageController;
   int _currentIndex = 0;
+  
+  // Multi-select state
+  bool _isMultiSelectMode = false;
+  final Set<String> _selectedTransactionIds = {};
+  
+  // Search and filter state
+  String _searchQuery = '';
+  bool _showSearchBar = false;
 
   @override
   void initState() {
@@ -30,6 +39,37 @@ class _AccountsScreenState extends State<AccountsScreen> {
   void dispose() {
     _pageController.dispose();
     super.dispose();
+  }
+  
+  void _toggleMultiSelect() {
+    setState(() {
+      _isMultiSelectMode = !_isMultiSelectMode;
+      if (!_isMultiSelectMode) {
+        _selectedTransactionIds.clear();
+      }
+    });
+  }
+  
+  void _toggleTransactionSelection(String id) {
+    setState(() {
+      if (_selectedTransactionIds.contains(id)) {
+        _selectedTransactionIds.remove(id);
+      } else {
+        _selectedTransactionIds.add(id);
+      }
+    });
+  }
+  
+  void _selectAll(List<String> transactionIds) {
+    setState(() {
+      _selectedTransactionIds.addAll(transactionIds);
+    });
+  }
+  
+  void _deselectAll() {
+    setState(() {
+      _selectedTransactionIds.clear();
+    });
   }
 
   IconData _getAccountIcon(AccountType type, String? icon) {
@@ -126,23 +166,64 @@ class _AccountsScreenState extends State<AccountsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Accounts'),
-        actions: [
-          IconButton(
-            onPressed: _createCategory,
-            icon: const Icon(Icons.category_rounded),
-            tooltip: 'Create category',
-          ),
-          IconButton(
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (_) => const AddAccountDialog(),
-              );
-            },
-            icon: const Icon(Icons.add_rounded),
-          ),
-        ],
+        title: _isMultiSelectMode
+            ? Text('${_selectedTransactionIds.length} selected')
+            : const Text('Accounts'),
+        leading: _isMultiSelectMode
+            ? IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: _toggleMultiSelect,
+              )
+            : null,
+        actions: _isMultiSelectMode
+            ? [
+                if (_selectedTransactionIds.isNotEmpty)
+                  IconButton(
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (_) => BulkEditDialog(
+                          transactionIds: _selectedTransactionIds.toList(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.edit),
+                    tooltip: 'Edit selected',
+                  ),
+                IconButton(
+                  onPressed: _deselectAll,
+                  icon: const Icon(Icons.deselect),
+                  tooltip: 'Deselect all',
+                ),
+              ]
+            : [
+                IconButton(
+                  onPressed: () {
+                    setState(() => _showSearchBar = !_showSearchBar);
+                  },
+                  icon: Icon(_showSearchBar ? Icons.search_off : Icons.search),
+                  tooltip: 'Search',
+                ),
+                IconButton(
+                  onPressed: _toggleMultiSelect,
+                  icon: const Icon(Icons.checklist_rounded),
+                  tooltip: 'Multi-select',
+                ),
+                IconButton(
+                  onPressed: _createCategory,
+                  icon: const Icon(Icons.category_rounded),
+                  tooltip: 'Create category',
+                ),
+                IconButton(
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (_) => const AddAccountDialog(),
+                    );
+                  },
+                  icon: const Icon(Icons.add_rounded),
+                ),
+              ],
       ),
       body: Consumer2<AccountProvider, TransactionProvider>(
         builder: (context, accProvider, txProvider, _) {
@@ -188,9 +269,41 @@ class _AccountsScreenState extends State<AccountsScreen> {
               final bSeq = b.importSequence ?? 0;
               return aSeq.compareTo(bSeq);
             });
+          
+          // Apply search filter
+          final filteredTxns = _searchQuery.isEmpty
+              ? accountTxns
+              : accountTxns.where((t) {
+                  final query = _searchQuery.toLowerCase();
+                  return t.description.toLowerCase().contains(query) ||
+                      t.amount.toString().contains(query) ||
+                      (t.note?.toLowerCase().contains(query) ?? false);
+                }).toList();
 
           return Column(
             children: [
+              // Search bar
+              if (_showSearchBar)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: TextField(
+                    autofocus: true,
+                    onChanged: (value) => setState(() => _searchQuery = value),
+                    decoration: InputDecoration(
+                      hintText: 'Search transactions...',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () => setState(() => _searchQuery = ''),
+                            )
+                          : null,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
               // Carousel of account cards
               SizedBox(
                 height: 200,
@@ -258,23 +371,81 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   children: [
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        'Transactions',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Transactions',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                             ),
+                          ),
+                          if (_isMultiSelectMode && filteredTxns.isNotEmpty)
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                TextButton.icon(
+                                  onPressed: () => _selectAll(filteredTxns.map((t) => t.id).toList()),
+                                  icon: const Icon(Icons.select_all, size: 18),
+                                  label: const Text('All'),
+                                ),
+                                TextButton.icon(
+                                  onPressed: _deselectAll,
+                                  icon: const Icon(Icons.deselect, size: 18),
+                                  label: const Text('None'),
+                                ),
+                              ],
+                            ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 12),
                     Expanded(
-                      child: accountTxns.isEmpty
-                          ? const Center(child: Text('No transactions in this account'))
+                      child: filteredTxns.isEmpty
+                          ? Center(
+                              child: Text(
+                                _searchQuery.isEmpty
+                                    ? 'No transactions in this account'
+                                    : 'No transactions found',
+                              ),
+                            )
                           : ListView.separated(
                               padding: const EdgeInsets.symmetric(horizontal: 16),
-                              itemCount: accountTxns.length,
+                              itemCount: filteredTxns.length,
                               separatorBuilder: (context, index) => const SizedBox(height: 8),
                               itemBuilder: (context, i) {
-                                return TransactionListItem(transaction: accountTxns[i]);
+                                final txn = filteredTxns[i];
+                                final isSelected = _selectedTransactionIds.contains(txn.id);
+                                
+                                return _isMultiSelectMode
+                                    ? InkWell(
+                                        onTap: () => _toggleTransactionSelection(txn.id),
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            border: Border.all(
+                                              color: isSelected
+                                                  ? Theme.of(context).colorScheme.primary
+                                                  : Colors.transparent,
+                                              width: 2,
+                                            ),
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Checkbox(
+                                                value: isSelected,
+                                                onChanged: (_) => _toggleTransactionSelection(txn.id),
+                                              ),
+                                              Expanded(
+                                                child: TransactionListItem(transaction: txn),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      )
+                                    : TransactionListItem(transaction: txn);
                               },
                             ),
                     ),

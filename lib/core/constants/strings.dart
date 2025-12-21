@@ -7,8 +7,8 @@ class AppStrings {
   
   // Dashboard
   static const String totalBalance = 'Total Balance';
-  static const String income = 'Income';
-  static const String expense = 'Expense';
+  static const String income = 'Credit'; // Changed from Income to Credit
+  static const String expense = 'Debit'; // Changed from Expense to Debit
   static const String recentTransactions = 'Recent Transactions';
   static const String viewAll = 'View All';
   

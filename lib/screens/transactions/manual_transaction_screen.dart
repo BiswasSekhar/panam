@@ -148,7 +148,7 @@ class _ManualTransactionScreenState extends State<ManualTransactionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final title = widget.isIncome ? 'Add Income' : 'Add Expense';
+    final title = widget.isIncome ? 'Add Credit' : 'Add Debit';
     final dtFmt = DateFormat('dd MMM yyyy, HH:mm');
 
     return Scaffold(

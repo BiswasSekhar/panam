@@ -347,7 +347,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                                       ),
                                       const SizedBox(width: 8),
                                       Text(
-                                        'Income',
+                                        'Credit',
                                         style: TextStyle(
                                           fontWeight: _isIncome ? FontWeight.bold : FontWeight.normal,
                                           color: _isIncome ? theme.colorScheme.onPrimaryContainer : null,
