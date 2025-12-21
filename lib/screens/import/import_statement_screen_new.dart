@@ -163,7 +163,8 @@ class _ImportStatementScreenState extends State<ImportStatementScreen> {
         type: t.type,
         description: t.description,
         externalRef: t.externalRef,
-        isSelfTransfer: t.isSelfTransfer,
+        isSelfTransfer: t.isSelfTransfer ?? false,
+        categoryId: null, // No AI categorization in this flow yet
       );
     }).toList();
 

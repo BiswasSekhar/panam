@@ -5,8 +5,11 @@ import 'package:provider/provider.dart';
 import '../../providers/transaction_provider.dart';
 import '../../providers/account_provider.dart';
 import '../../providers/category_provider.dart';
+import '../../providers/ai_settings_provider.dart';
 import '../../data/models/category.dart';
 import '../../data/models/transaction.dart';
+import '../../features/categorization/category_suggester.dart';
+import '../../features/ai/smart_categorizer.dart';
 import '../import/import_statement_screen.dart';
 
 class AddTransactionSheet extends StatefulWidget {
@@ -32,6 +35,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   String? _selectedAccountId;
   String? _selectedCategoryId;
   bool _saving = false;
+  bool _autoSuggestEnabled = true;
 
   bool get _isEdit => widget.transaction != null;
 
@@ -47,10 +51,54 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     _amountController = TextEditingController(text: existing?.amount.toString() ?? '');
     _descriptionController = TextEditingController(text: existing?.description ?? '');
     _noteController = TextEditingController(text: existing?.note ?? '');
+    
+    // Add listener for auto-suggestion
+    _descriptionController.addListener(_onDescriptionChanged);
+  }
+  
+  void _onDescriptionChanged() {
+    if (!_autoSuggestEnabled || _isEdit) return;
+    if (_descriptionController.text.trim().length < 3) return;
+    
+    // Auto-suggest category based on description
+    final catProvider = context.read<CategoryProvider>();
+    final aiSettings = context.read<AISettingsProvider>();
+    
+    final amount = double.tryParse(_amountController.text.trim()) ?? 0;
+    
+    String? suggestedCategoryId;
+    
+    // Try AI-powered categorization first if enabled
+    if (aiSettings.smartCategorizationEnabled) {
+      suggestedCategoryId = SmartCategorizer.categorizeTransaction(
+        description: _descriptionController.text,
+        narration: _noteController.text.isNotEmpty ? _noteController.text : null,
+        availableCategories: catProvider.categories,
+        isIncome: _isIncome,
+      );
+    }
+    
+    // Fall back to keyword-based suggestion if no AI match
+    if (suggestedCategoryId == null) {
+      final suggested = CategorySuggester.suggestCategory(
+        description: _descriptionController.text,
+        amount: amount,
+        availableCategories: catProvider.categories,
+        isIncome: _isIncome,
+      );
+      suggestedCategoryId = suggested?.id;
+    }
+    
+    if (suggestedCategoryId != null && suggestedCategoryId != _selectedCategoryId) {
+      setState(() {
+        _selectedCategoryId = suggestedCategoryId;
+      });
+    }
   }
 
   @override
   void dispose() {
+    _descriptionController.removeListener(_onDescriptionChanged);
     _amountController.dispose();
     _descriptionController.dispose();
     _noteController.dispose();
@@ -201,34 +249,103 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   Future<void> _createCategory(BuildContext context) async {
     final provider = context.read<CategoryProvider>();
     final controller = TextEditingController();
-    final name = await showDialog<String>(
+    String selectedEmoji = '📁';
+    
+    final result = await showDialog<({String name, String emoji})>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Create category'),
-          content: TextField(
-            controller: controller,
-            autofocus: false,
-            decoration: const InputDecoration(labelText: 'Category name'),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(controller.text),
-              child: const Text('Create'),
-            ),
-          ],
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Create Category'),
+              content: SizedBox(
+                width: 300,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: controller,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Category name',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text('Select Icon:', style: TextStyle(fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 8),
+                    Container(
+                      height: 140,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: SingleChildScrollView(
+                        child: Wrap(
+                          spacing: 4,
+                          runSpacing: 4,
+                          children: [
+                            '🍔', '🍕', '☕', '🛒', '🚗', '⛽', '🚌', '🏠', '💡', '💳',
+                            '💰', '📱', '🎮', '🎬', '🏥', '💊', '📚', '✈️', '🏨', '🎁',
+                            '👕', '👟', '💻', '📺', '🎵', '🏋️', '⚽', '🎨', '🔧', '🔑',
+                            '🍽️', '🍞', '🥗', '🍜', '🚕', '🚇', '🏦', '💼', '📊', '🎓',
+                            '🏪', '🛍️', '💸', '📦', '🎯', '🌐', '📁', '📅', '⭐', '🌟',
+                          ].map((emoji) => GestureDetector(
+                            onTap: () => setState(() => selectedEmoji = emoji),
+                            child: Container(
+                              width: 44,
+                              height: 44,
+                              margin: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                color: selectedEmoji == emoji
+                                    ? Theme.of(context).colorScheme.primaryContainer
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: selectedEmoji == emoji
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Colors.transparent,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Center(
+                                child: Text(emoji, style: const TextStyle(fontSize: 24)),
+                              ),
+                            ),
+                          )).toList(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop((
+                    name: controller.text,
+                    emoji: selectedEmoji,
+                  )),
+                  child: const Text('Create'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
     if (!mounted) return;
-    final trimmed = (name ?? '').trim();
+    final trimmed = (result?.name ?? '').trim();
     if (trimmed.isEmpty) return;
 
-    final created = await provider.createCategory(name: trimmed, isIncome: _isIncome);
+    final created = await provider.createCategory(
+      name: trimmed,
+      isIncome: _isIncome,
+      icon: result!.emoji,
+    );
     if (!mounted) return;
     setState(() => _selectedCategoryId = created.id);
   }
@@ -415,7 +532,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                           onChanged: (v) => setState(() => _selectedAccountId = v),
                         );
                       }),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
                       Consumer<CategoryProvider>(builder: (context, catProvider, _) {
                         final cats = catProvider.categories.where((c) => c.isIncome == _isIncome).toList(growable: false);
                         if (cats.isEmpty) {
@@ -427,29 +544,110 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                           _selectedCategoryId = (defaultCat.isNotEmpty ? defaultCat.first.id : cats.first.id);
                         }
 
-                        String labelFor(Category c) => c.isDefault ? '${c.name} (Default)' : c.name;
+                        // Smart sorting: selected first, then most used, then alphabetically
+                        final txnProvider = context.read<TransactionProvider>();
+                        final sortedCats = CategorySuggester.sortCategoriesSmartly(
+                          categories: cats,
+                          transactions: txnProvider.transactions,
+                          isIncome: _isIncome,
+                          selectedCategoryId: _selectedCategoryId,
+                        );
 
-                        return DropdownButtonFormField<String>(
-                          value: _selectedCategoryId,
-                          decoration: InputDecoration(
-                            labelText: 'Category',
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            suffixIcon: IconButton(
-                              tooltip: 'Create category',
-                              onPressed: () => _createCategory(context),
-                              icon: const Icon(Icons.add_rounded),
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  _isIncome ? Icons.trending_up : Icons.trending_down,
+                                  size: 18,
+                                  color: _isIncome ? Colors.green : Colors.red,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  _isIncome ? 'Income Categories' : 'Expense Categories',
+                                  style: theme.textTheme.labelLarge?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: _isIncome ? Colors.green : Colors.red,
+                                  ),
+                                ),
+                                const Spacer(),
+                                IconButton(
+                                  onPressed: () => _createCategory(context),
+                                  icon: const Icon(Icons.add_circle_outline, size: 20),
+                                  tooltip: 'Add category',
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                ),
+                              ],
                             ),
-                          ),
-                          items: cats
-                              .map((Category c) => DropdownMenuItem(
-                                    value: c.id,
-                                    child: Text(labelFor(c)),
-                                  ))
-                              .toList(growable: false),
-                          onChanged: (v) => setState(() => _selectedCategoryId = v),
+                            const SizedBox(height: 8),
+                            Container(
+                              constraints: const BoxConstraints(maxHeight: 160),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                                border: Border.all(
+                                  color: (_isIncome ? Colors.green : Colors.red).withValues(alpha: 0.2),
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: SingleChildScrollView(
+                                padding: const EdgeInsets.all(8),
+                                child: Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: sortedCats.map((cat) {
+                                    final isSelected = cat.id == _selectedCategoryId;
+                                    final isEmoji = cat.icon.length <= 4 && !cat.icon.contains('_');
+                                    
+                                    return FilterChip(
+                                      selected: isSelected,
+                                      label: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (isEmoji)
+                                            Text(cat.icon, style: const TextStyle(fontSize: 14))
+                                          else
+                                            Icon(
+                                              _getIconData(cat.icon),
+                                              size: 14,
+                                              color: isSelected
+                                                  ? theme.colorScheme.onPrimary
+                                                  : theme.colorScheme.onSurfaceVariant,
+                                            ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            cat.name,
+                                            style: TextStyle(fontSize: 12),
+                                          ),
+                                        ],
+                                      ),
+                                      onSelected: (_) => setState(() => _selectedCategoryId = cat.id),
+                                      selectedColor: _isIncome ? Colors.green : Colors.red,
+                                      backgroundColor: theme.colorScheme.surface,
+                                      labelStyle: TextStyle(
+                                        color: isSelected
+                                            ? Colors.white
+                                            : theme.colorScheme.onSurface,
+                                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                      ),
+                                      showCheckmark: false,
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      visualDensity: VisualDensity.compact,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ),
+                          ],
                         );
                       }),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
                       TextFormField(
                         controller: _noteController,
                         decoration: InputDecoration(
@@ -529,5 +727,103 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
         );
       },
     );
+  }
+
+  IconData _getIconData(String iconName) {
+    final iconMap = {
+      'category': Icons.category,
+      'restaurant': Icons.restaurant,
+      'local_grocery_store': Icons.local_grocery_store,
+      'fastfood': Icons.fastfood,
+      'local_cafe': Icons.local_cafe,
+      'delivery_dining': Icons.delivery_dining,
+      'local_gas_station': Icons.local_gas_station,
+      'directions_bus': Icons.directions_bus,
+      'local_taxi': Icons.local_taxi,
+      'local_parking': Icons.local_parking,
+      'build': Icons.build,
+      'checkroom': Icons.checkroom,
+      'devices': Icons.devices,
+      'weekend': Icons.weekend,
+      'shopping_bag': Icons.shopping_bag,
+      'shopping_cart': Icons.shopping_cart,
+      'electric_bolt': Icons.electric_bolt,
+      'water_drop': Icons.water_drop,
+      'propane_tank': Icons.propane_tank,
+      'wifi': Icons.wifi,
+      'phone': Icons.phone,
+      'home': Icons.home,
+      'shield': Icons.shield,
+      'movie': Icons.movie,
+      'subscriptions': Icons.subscriptions,
+      'sports_esports': Icons.sports_esports,
+      'celebration': Icons.celebration,
+      'fitness_center': Icons.fitness_center,
+      'medical_services': Icons.medical_services,
+      'local_pharmacy': Icons.local_pharmacy,
+      'dentistry': Icons.medical_services,
+      'health_and_safety': Icons.health_and_safety,
+      'biotech': Icons.biotech,
+      'school': Icons.school,
+      'menu_book': Icons.menu_book,
+      'laptop_chromebook': Icons.laptop_chromebook,
+      'edit_note': Icons.edit_note,
+      'content_cut': Icons.content_cut,
+      'face': Icons.face,
+      'hotel': Icons.hotel,
+      'flight': Icons.flight,
+      'luggage': Icons.luggage,
+      'beach_access': Icons.beach_access,
+      'music_note': Icons.music_note,
+      'ondemand_video': Icons.ondemand_video,
+      'cloud': Icons.cloud,
+      'computer': Icons.computer,
+      'auto_stories': Icons.auto_stories,
+      'card_giftcard': Icons.card_giftcard,
+      'volunteer_activism': Icons.volunteer_activism,
+      'favorite': Icons.favorite,
+      'account_balance': Icons.account_balance,
+      'payments': Icons.payments,
+      'credit_card': Icons.credit_card,
+      'receipt_long': Icons.receipt_long,
+      'trending_up': Icons.trending_up,
+      'pets': Icons.pets,
+      'local_laundry_service': Icons.local_laundry_service,
+      'mail': Icons.mail,
+      'gavel': Icons.gavel,
+      'more_horiz': Icons.more_horiz,
+      'work': Icons.work,
+      'business_center': Icons.business_center,
+      'savings': Icons.savings,
+      'home_work': Icons.home_work,
+      'history': Icons.history,
+      'workspace_premium': Icons.workspace_premium,
+      'redeem': Icons.redeem,
+      'loyalty': Icons.loyalty,
+      'elderly': Icons.elderly,
+      'attach_money': Icons.attach_money,
+      'receipt': Icons.receipt,
+      'directions_car': Icons.directions_car,
+      // New icons
+      'handyman': Icons.handyman,
+      'child_care': Icons.child_care,
+      'baby_changing_station': Icons.baby_changing_station,
+      'countertops': Icons.countertops,
+      'business': Icons.business,
+      'yard': Icons.yard,
+      'home_repair_service': Icons.home_repair_service,
+      'spa': Icons.spa,
+      'newspaper': Icons.newspaper,
+      'atm': Icons.atm,
+      'sync_alt': Icons.sync_alt,
+      'sell': Icons.sell,
+      'schedule': Icons.schedule,
+      'volunteer_activism': Icons.volunteer_activism,
+      'account_balance_wallet': Icons.account_balance_wallet,
+      'school': Icons.school,
+      'emoji_events': Icons.emoji_events,
+      'copyright': Icons.copyright,
+    };
+    return iconMap[iconName] ?? Icons.category;
   }
 }

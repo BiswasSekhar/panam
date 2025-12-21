@@ -7,8 +7,11 @@ import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 import '../../features/import/statement_parser.dart';
+import '../../features/ai/ai_pdf_analyzer.dart';
+import '../../features/ai/smart_categorizer.dart';
 import '../../providers/transaction_provider.dart';
 import '../../providers/account_provider.dart';
+import '../../providers/category_provider.dart';
 import '../../data/models/transaction.dart';
 import 'widgets/account_selector_dialog.dart';
 import 'widgets/month_filter_dialog.dart';
@@ -167,6 +170,17 @@ class _ImportStatementScreenState extends State<ImportStatementScreen> {
       return;
     }
 
+    // AI-powered bank detection
+    final pdfAnalyzer = AIPdfAnalyzer();
+    final bankAnalysis = await pdfAnalyzer.analyzePdfText(cleaned);
+    
+    if (bankAnalysis.isKnownFormat) {
+      debugPrint('[Import] AI detected bank: ${bankAnalysis.bankName} (confidence: ${bankAnalysis.confidence})');
+    } else {
+      debugPrint('[Import] Unknown bank format detected: ${bankAnalysis.bankName}');
+      // Could optionally create a custom parser here with AI
+    }
+
     final parsed = StatementParser.parse(cleaned);
     if (parsed.transactions.isEmpty) {
       if (!mounted) return;
@@ -281,17 +295,46 @@ class _ImportStatementScreenState extends State<ImportStatementScreen> {
       return;
     }
 
-    // Convert to provider format and check duplicates
-    final items = transactionsToImport.map((t) {
-      return (
+    // Convert to provider format and auto-categorize with AI
+    final categoryProvider = context.read<CategoryProvider>();
+    final items = <({
+      DateTime date,
+      double amount,
+      TransactionType type,
+      String description,
+      String? externalRef,
+      bool? isSelfTransfer,
+      String? categoryId,
+    })>[];
+    
+    for (final t in transactionsToImport) {
+      String? categoryId;
+      
+      // Try AI categorization if description is meaningful
+      if (t.description.trim().length > 3) {
+        categoryId = await SmartCategorizer.categorizeWithLLM(
+          description: t.description,
+          amount: t.amount.abs(),
+          availableCategories: categoryProvider.categories,
+          isIncome: t.type == TransactionType.income,
+        );
+        
+        if (categoryId != null) {
+          final category = categoryProvider.categories.firstWhere((c) => c.id == categoryId);
+          debugPrint('[Import] AI categorized "${t.description}" as "${category.name}"');
+        }
+      }
+      
+      items.add((
         date: t.date,
         amount: t.amount,
         type: t.type,
         description: t.description,
         externalRef: t.externalRef,
-        isSelfTransfer: t.isSelfTransfer,
-      );
-    }).toList();
+        isSelfTransfer: t.isSelfTransfer ?? false,
+        categoryId: categoryId,
+      ));
+    }
 
     final provider = context.read<TransactionProvider>();
     final duplicates = provider.countPossibleDuplicatesForImport(

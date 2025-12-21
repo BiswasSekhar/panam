@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../data/models/transaction.dart';
 
-class SpendingTrendChart extends StatelessWidget {
+class SpendingTrendChart extends StatefulWidget {
   final List<Transaction> transactions;
   final String period; // 'week', 'month', '3months'
 
@@ -15,8 +15,56 @@ class SpendingTrendChart extends StatelessWidget {
   });
 
   @override
+  State<SpendingTrendChart> createState() => _SpendingTrendChartState();
+}
+
+class _SpendingTrendChartState extends State<SpendingTrendChart> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    
+    // Check if there are any expense transactions
+    final hasExpenses = widget.transactions.any((txn) => txn.type == TransactionType.expense);
+    if (!hasExpenses) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.receipt_long_outlined,
+                size: 64,
+                color: theme.colorScheme.outline.withValues(alpha: 0.5),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'No transactions available',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Start adding expenses to see trends',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.outline,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
     final spots = _calculateSpots();
 
     if (spots.isEmpty) {
@@ -25,8 +73,14 @@ class SpendingTrendChart extends StatelessWidget {
 
     final maxY = spots.map((s) => s.y).reduce((a, b) => a > b ? a : b);
     final interval = maxY > 0 ? maxY / 5.0 : 1.0;
+    
+    // For month and 3months, enable horizontal scrolling
+    final isScrollable = widget.period == 'month' || widget.period == '3months';
+    final chartWidth = isScrollable
+        ? MediaQuery.of(context).size.width * (widget.period == 'month' ? 2.0 : 4.0)
+        : null;
 
-    return LineChart(
+    final chart = LineChart(
       LineChartData(
         gridData: FlGridData(
           show: true,
@@ -47,7 +101,7 @@ class SpendingTrendChart extends StatelessWidget {
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 30,
-              interval: 1,
+              interval: widget.period == '3months' ? 3 : 1,
               getTitlesWidget: (value, meta) {
                 if (value.toInt() < 0 || value.toInt() >= spots.length) {
                   return const SizedBox();
@@ -56,9 +110,9 @@ class SpendingTrendChart extends StatelessWidget {
                 return SideTitleWidget(
                   meta: meta,
                   child: Text(
-                    period == 'week'
+                    widget.period == 'week'
                         ? DateFormat('EEE').format(date).substring(0, 1)
-                        : period == 'month'
+                        : widget.period == 'month'
                             ? '${date.day}'
                             : DateFormat('MMM').format(date).substring(0, 1),
                     style: theme.textTheme.bodySmall,
@@ -119,6 +173,48 @@ class SpendingTrendChart extends StatelessWidget {
         ],
       ),
     );
+
+    if (!isScrollable) {
+      return chart;
+    }
+
+    // Wrap in horizontal scrollview with indicator
+    return Column(
+      children: [
+        Expanded(
+          child: Scrollbar(
+            controller: _scrollController,
+            thumbVisibility: true,
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: chartWidth,
+                child: chart,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.swipe_left,
+              size: 16,
+              color: theme.colorScheme.outline,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              'Swipe to see more',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
   List<FlSpot> _calculateSpots() {
@@ -126,7 +222,7 @@ class SpendingTrendChart extends StatelessWidget {
     final Map<int, double> dataPoints = {};
 
     int days;
-    switch (period) {
+    switch (widget.period) {
       case 'week':
         days = 7;
         break;
@@ -146,7 +242,7 @@ class SpendingTrendChart extends StatelessWidget {
     }
 
     // Aggregate spending by day
-    for (final txn in transactions) {
+    for (final txn in widget.transactions) {
       if (txn.type == TransactionType.expense) {
         final daysDiff = now.difference(txn.date).inDays;
         if (daysDiff >= 0 && daysDiff < days) {
@@ -165,7 +261,7 @@ class SpendingTrendChart extends StatelessWidget {
   DateTime _getDateForIndex(int index) {
     final now = DateTime.now();
     int days;
-    switch (period) {
+    switch (widget.period) {
       case 'week':
         days = 7;
         break;

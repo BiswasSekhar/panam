@@ -1,0 +1,190 @@
+import 'package:flutter/foundation.dart';
+import '../data/local/hive_service.dart';
+import '../features/ai/llm_service.dart';
+
+/// Provider for managing AI/ML feature settings
+class AISettingsProvider extends ChangeNotifier {
+  static const String _aiEnabledKey = 'ai_enabled';
+  static const String _predictionsEnabledKey = 'predictions_enabled';
+  static const String _smartCategorizationKey = 'smart_categorization_enabled';
+  static const String _localLLMDownloadedKey = 'local_llm_downloaded';
+  static const String _localLLMEnabledKey = 'local_llm_enabled';
+
+  final HiveService _hive = HiveService();
+
+  // AI Master switch
+  bool _aiEnabled = false;
+  bool get aiEnabled => _aiEnabled;
+
+  // Spending predictions
+  bool _predictionsEnabled = true;
+  bool get predictionsEnabled => _predictionsEnabled && _aiEnabled;
+
+  // Smart categorization (keyword-based)
+  bool _smartCategorizationEnabled = true;
+  bool get smartCategorizationEnabled => _smartCategorizationEnabled && _aiEnabled;
+
+  // Local LLM for advanced categorization
+  bool _localLLMDownloaded = false;
+  bool get localLLMDownloaded => _localLLMDownloaded;
+
+  bool _localLLMEnabled = false;
+  bool get localLLMEnabled => _localLLMEnabled && _localLLMDownloaded && _aiEnabled;
+
+  // Download progress (0-100)
+  double _downloadProgress = 0;
+  double get downloadProgress => _downloadProgress;
+
+  bool _isDownloading = false;
+  bool get isDownloading => _isDownloading;
+
+  String? _downloadError;
+  String? get downloadError => _downloadError;
+
+  AISettingsProvider() {
+    _loadSettings();
+    _checkModelStatus();
+  }
+
+  bool _getBool(String key, {bool defaultValue = false}) {
+    final value = _hive.settingsBox.get(key);
+    if (value == null) return defaultValue;
+    return value == 'true';
+  }
+
+  void _loadSettings() {
+    _aiEnabled = _getBool(_aiEnabledKey, defaultValue: false);
+    _predictionsEnabled = _getBool(_predictionsEnabledKey, defaultValue: true);
+    _smartCategorizationEnabled = _getBool(_smartCategorizationKey, defaultValue: true);
+    _localLLMDownloaded = _getBool(_localLLMDownloadedKey, defaultValue: false);
+    _localLLMEnabled = _getBool(_localLLMEnabledKey, defaultValue: false);
+    notifyListeners();
+  }
+
+  /// Check if model file actually exists on disk
+  Future<void> _checkModelStatus() async {
+    final exists = await LLMService().isModelDownloaded();
+    if (_localLLMDownloaded != exists) {
+      _localLLMDownloaded = exists;
+      await _hive.settingsBox.put(_localLLMDownloadedKey, exists.toString());
+      notifyListeners();
+    }
+  }
+
+  Future<void> setAIEnabled(bool enabled) async {
+    _aiEnabled = enabled;
+    await _hive.settingsBox.put(_aiEnabledKey, enabled.toString());
+    notifyListeners();
+  }
+
+  Future<void> setPredictionsEnabled(bool enabled) async {
+    _predictionsEnabled = enabled;
+    await _hive.settingsBox.put(_predictionsEnabledKey, enabled.toString());
+    notifyListeners();
+  }
+
+  Future<void> setSmartCategorizationEnabled(bool enabled) async {
+    _smartCategorizationEnabled = enabled;
+    await _hive.settingsBox.put(_smartCategorizationKey, enabled.toString());
+    notifyListeners();
+  }
+
+  Future<void> setLocalLLMEnabled(bool enabled) async {
+    _localLLMEnabled = enabled;
+    await _hive.settingsBox.put(_localLLMEnabledKey, enabled.toString());
+    notifyListeners();
+  }
+
+  /// Download Gemma 3 270M model from HuggingFace
+  /// Downloads the Q4_K_M quantized version (~292MB)
+  Future<void> downloadLocalLLM() async {
+    if (_isDownloading || _localLLMDownloaded) return;
+
+    _isDownloading = true;
+    _downloadProgress = 0;
+    _downloadError = null;
+    notifyListeners();
+
+    try {
+      final llmService = LLMService();
+      
+      await llmService.downloadModel(
+        onProgress: (progress) {
+          _downloadProgress = progress * 100;
+          notifyListeners();
+        },
+        onError: (error) {
+          _downloadError = error;
+          notifyListeners();
+        },
+      );
+
+      // Verify download completed successfully
+      final downloaded = await llmService.isModelDownloaded();
+      
+      if (downloaded) {
+        _localLLMDownloaded = true;
+        _localLLMEnabled = true;
+        _isDownloading = false;
+        
+        await _hive.settingsBox.put(_localLLMDownloadedKey, 'true');
+        await _hive.settingsBox.put(_localLLMEnabledKey, 'true');
+        notifyListeners();
+      } else {
+        throw Exception('Download completed but model file not found');
+      }
+    } catch (e) {
+      _downloadError = e.toString();
+      _isDownloading = false;
+      _downloadProgress = 0;
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  /// Delete the downloaded LLM model
+  Future<void> deleteLocalLLM() async {
+    try {
+      await LLMService().deleteModel();
+      
+      _localLLMDownloaded = false;
+      _localLLMEnabled = false;
+      _downloadProgress = 0;
+      _downloadError = null;
+      
+      await _hive.settingsBox.put(_localLLMDownloadedKey, 'false');
+      await _hive.settingsBox.put(_localLLMEnabledKey, 'false');
+      notifyListeners();
+    } catch (e) {
+      _downloadError = e.toString();
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  /// Get estimated storage size for LLM model
+  String get estimatedModelSize => '~1.6 GB (Phi-2 Q4_K_M)';
+
+  /// Get actual model size if downloaded
+  Future<String?> getActualModelSize() async {
+    final size = await LLMService().getModelSize();
+    if (size == null) return null;
+    
+    if (size < 1024 * 1024) {
+      return '${(size / 1024).toStringAsFixed(1)} KB';
+    } else if (size < 1024 * 1024 * 1024) {
+      return '${(size / (1024 * 1024)).toStringAsFixed(1)} MB';
+    } else {
+      return '${(size / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+    }
+  }
+
+  /// Check if device has sufficient resources for LLM
+  bool get deviceSupportsLLM {
+    // In production, check:
+    // - Available storage
+    // - RAM (4GB+ recommended)
+    // - CPU capabilities
+    return true; // Simplified for now
+  }
+}

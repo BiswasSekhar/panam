@@ -5,6 +5,7 @@ import 'providers/app_provider.dart';
 import 'providers/transaction_provider.dart';
 import 'providers/account_provider.dart';
 import 'providers/category_provider.dart';
+import 'providers/ai_settings_provider.dart';
 import 'app.dart';
 
 void main() async {
@@ -20,6 +21,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => TransactionProvider()),
         ChangeNotifierProvider(create: (_) => AccountProvider()),
         ChangeNotifierProvider(create: (_) => CategoryProvider()),
+        ChangeNotifierProvider(create: (_) => AISettingsProvider()),
       ],
       child: const PanamApp(),
     ),

@@ -6,10 +6,12 @@ import '../../providers/transaction_provider.dart';
 import '../../data/models/transaction.dart';
 import '../home/widgets/balance_card.dart';
 import '../../widgets/common/glassmorphic_card.dart';
+import '../../widgets/spending_insights_card.dart';
 import 'widgets/spending_trend_chart.dart';
 import 'widgets/transaction_heatmap.dart';
 import 'widgets/category_pie_chart.dart';
 import 'widgets/recurring_suggestions_card.dart';
+import 'widgets/spending_prediction_card.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
@@ -58,6 +60,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 // Balance Summary
                 BalanceCard(totalBalance: income - expense, income: income, expense: expense),
                 const SizedBox(height: 24),
+                
+                // Spending Prediction (AI-powered)
+                const SpendingPredictionCard(),
+                const SizedBox(height: 16),
+                
+                // AI Spending Insights (Psychological Analysis)
+                SpendingInsightsCard(transactions: txns),
+                const SizedBox(height: 16),
                 
                 // Recurring Transaction Suggestions
                 const RecurringSuggestionsCard(),

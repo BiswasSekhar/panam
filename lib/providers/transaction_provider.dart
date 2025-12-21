@@ -103,6 +103,7 @@ class TransactionProvider extends ChangeNotifier {
       String description,
       String? externalRef,
       bool isSelfTransfer,
+      String? categoryId,
     }) item,
     required List<Transaction> existing,
   }) {
@@ -201,6 +202,7 @@ class TransactionProvider extends ChangeNotifier {
       String description,
       String? externalRef,
       bool isSelfTransfer,
+      String? categoryId,
     })> items,
   }) {
     int duplicates = 0;
@@ -328,6 +330,7 @@ class TransactionProvider extends ChangeNotifier {
       String description,
       String? externalRef,
       bool isSelfTransfer,
+      String? categoryId,
     })> items,
     required TransactionSource source,
     required bool importDuplicates,
@@ -343,7 +346,8 @@ class TransactionProvider extends ChangeNotifier {
     for (var idx = 0; idx < items.length; idx++) {
       final item = items[idx];
       final isIncome = item.type == TransactionType.income;
-      final categoryId = _ensureDefaultCategoryId(isIncome: isIncome);
+      // Use AI-provided category if available, otherwise use default
+      final categoryId = item.categoryId ?? _ensureDefaultCategoryId(isIncome: isIncome);
 
       final match = _findExistingSelfTransferMatch(
         importingAccountId: accountId,
