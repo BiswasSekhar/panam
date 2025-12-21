@@ -22,9 +22,6 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Panam'),
-      ),
       body: SafeArea(
         child: Consumer<TransactionProvider>(
           builder: (context, txProvider, _) {

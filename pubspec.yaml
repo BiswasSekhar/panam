@@ -36,6 +36,13 @@ dependencies:
   flutter_slidable: ^4.0.0
   sensors_plus: ^6.1.0
   cupertino_icons: ^1.0.8
+  
+  # Charts and Visualization
+  fl_chart: ^0.70.2
+  table_calendar: ^3.1.2
+  
+  # Machine Learning
+  tflite_flutter: ^0.11.0
 
 dev_dependencies:
   flutter_test:

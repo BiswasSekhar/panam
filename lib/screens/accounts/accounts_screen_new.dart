@@ -205,11 +205,6 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   tooltip: 'Search',
                 ),
                 IconButton(
-                  onPressed: _toggleMultiSelect,
-                  icon: const Icon(Icons.checklist_rounded),
-                  tooltip: 'Multi-select',
-                ),
-                IconButton(
                   onPressed: _createCategory,
                   icon: const Icon(Icons.category_rounded),
                   tooltip: 'Create category',
@@ -282,10 +277,11 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
           return Column(
             children: [
+              const SizedBox(height: 16), // Top spacing
               // Search bar
               if (_showSearchBar)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                   child: TextField(
                     autofocus: true,
                     onChanged: (value) => setState(() => _searchQuery = value),
@@ -305,8 +301,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   ),
                 ),
               // Carousel of account cards
+              const SizedBox(height: 8), // Space before carousel
               SizedBox(
-                height: 200,
+                height: 220,
                 child: PageView.builder(
                   controller: _pageController,
                   onPageChanged: (index) {
@@ -320,8 +317,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
                     final accIncExp = accProvider.getAccountIncomeExpense(acc.id);
                     return AnimatedScale(
-                      scale: isActive ? 1.0 : 0.9,
-                      duration: const Duration(milliseconds: 300),
+                      scale: isActive ? 1.0 : 0.92,
+                      duration: const Duration(milliseconds: 350),
+                      curve: Curves.easeOutCubic,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
                         child: GlassmorphicCard(
@@ -331,9 +329,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
                             children: [
                               Icon(
                                 _getAccountIcon(acc.type, acc.icon),
-                                size: 40,
+                                size: 36,
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 6),
                               Text(
                                 acc.name,
                                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -347,7 +345,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                                       fontWeight: FontWeight.w600,
                                     ),
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 8),
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                                 children: [
@@ -411,41 +409,44 @@ class _AccountsScreenState extends State<AccountsScreen> {
                               ),
                             )
                           : ListView.separated(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 100), // Bottom padding for dock
                               itemCount: filteredTxns.length,
                               separatorBuilder: (context, index) => const SizedBox(height: 8),
                               itemBuilder: (context, i) {
                                 final txn = filteredTxns[i];
                                 final isSelected = _selectedTransactionIds.contains(txn.id);
                                 
-                                return _isMultiSelectMode
-                                    ? InkWell(
-                                        onTap: () => _toggleTransactionSelection(txn.id),
-                                        borderRadius: BorderRadius.circular(12),
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            border: Border.all(
-                                              color: isSelected
-                                                  ? Theme.of(context).colorScheme.primary
-                                                  : Colors.transparent,
-                                              width: 2,
-                                            ),
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Checkbox(
-                                                value: isSelected,
-                                                onChanged: (_) => _toggleTransactionSelection(txn.id),
-                                              ),
-                                              Expanded(
-                                                child: TransactionListItem(transaction: txn),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      )
-                                    : TransactionListItem(transaction: txn);
+                                return GestureDetector(
+                                  onLongPress: () {
+                                    if (!_isMultiSelectMode) {
+                                      setState(() {
+                                        _isMultiSelectMode = true;
+                                        _selectedTransactionIds.add(txn.id);
+                                      });
+                                    }
+                                  },
+                                  onTap: _isMultiSelectMode
+                                      ? () => _toggleTransactionSelection(txn.id)
+                                      : null,
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 250),
+                                    curve: Curves.easeOutCubic,
+                                    transform: isSelected ? Matrix4.identity().scaled(0.98) : Matrix4.identity(),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: isSelected
+                                          ? Border.all(
+                                              color: Theme.of(context).colorScheme.primary,
+                                              width: 2.5,
+                                            )
+                                          : null,
+                                    ),
+                                    child: IgnorePointer(
+                                      ignoring: _isMultiSelectMode,
+                                      child: TransactionListItem(transaction: txn),
+                                    ),
+                                  ),
+                                );
                               },
                             ),
                     ),
