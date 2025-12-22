@@ -303,7 +303,7 @@ class _ImportStatementScreenState extends State<ImportStatementScreen> {
       TransactionType type,
       String description,
       String? externalRef,
-      bool? isSelfTransfer,
+      bool isSelfTransfer,
       String? categoryId,
     })>[];
     

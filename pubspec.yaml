@@ -43,7 +43,8 @@ dependencies:
   
   # Machine Learning
   tflite_flutter: ^0.11.0
-  fllama: ^0.0.1  # llama.cpp for Flutter - works on iOS with Metal
+  fllama:
+    path: ../local_packages/fllama
   
   # Download & Storage
   dio: ^5.9.0
